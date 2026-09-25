@@ -54,7 +54,22 @@ function draw() {
   context.fillStyle = '#20292b';
   context.fillRect(0, 0, canvas.width, canvas.height);
   board.forEach((row, y) => row.forEach((value, x) => value && drawCell(context, x, y, colors[value], cellSize)));
+  if (currentPiece) drawGhost();
   if (currentPiece) drawMatrix(context, currentPiece.matrix, currentPiece.position, cellSize);
+}
+
+function drawGhost() {
+  const ghostPosition = { ...currentPiece.position };
+  while (!collides({ matrix: currentPiece.matrix, position: { x: ghostPosition.x, y: ghostPosition.y + 1 } })) ghostPosition.y++;
+  context.save();
+  context.globalAlpha = 0.5;
+  currentPiece.matrix.forEach((row, y) => row.forEach((value, x) => {
+    if (!value) return;
+    context.strokeStyle = colors[value];
+    context.lineWidth = 2;
+    context.strokeRect((x + ghostPosition.x) * cellSize + 4, (y + ghostPosition.y) * cellSize + 4, cellSize - 8, cellSize - 8);
+  }));
+  context.restore();
 }
 
 function drawMatrix(targetContext, matrix, position, size) {
