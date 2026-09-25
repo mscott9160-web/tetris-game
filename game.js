@@ -10,6 +10,14 @@ const levelElement = document.querySelector('#level');
 const statusElement = document.querySelector('#status');
 const startButton = document.querySelector('#start');
 const highScoresElement = document.querySelector('#high-scores');
+const modeSelect = document.querySelector('#mode');
+const muteButton = document.querySelector('#mute');
+const themeButton = document.querySelector('#theme');
+const fullscreenButton = document.querySelector('#fullscreen');
+const fileInput = document.querySelector('#score-file');
+const importButton = document.querySelector('#import-scores');
+const exportButton = document.querySelector('#export-scores');
+const liveStatus = document.querySelector('#live-status');
 
 const columns = 10;
 const rows = 20;
@@ -25,6 +33,9 @@ const shapes = [
   [[7, 7, 0], [0, 7, 7]]
 ];
 const highScoreKey = 'blockfall-high-scores';
+const settingsKey = 'blockfall-settings';
+const modes = { classic: { label: 'CLASSIC', target: 0 }, sprint: { label: 'SPRINT', target: 40 }, time: { label: 'TIME ATTACK', target: 120 } };
+const wallKicks = [[0, 0], [-1, 0], [1, 0], [0, -1], [-2, 0], [2, 0]];
 
 let board = createBoard();
 let currentPiece;
@@ -36,9 +47,16 @@ let lines = 0;
 let level = 1;
 let dropCounter = 0;
 let dropInterval = 800;
+let lockCounter = 0;
+let lockDelay = 500;
 let lastTime = 0;
 let running = false;
 let paused = false;
+let mode = 'classic';
+let elapsedTime = 0;
+let bag = [];
+let muted = false;
+let soundContext;
 
 function createBoard() {
   return Array.from({ length: rows }, () => Array(columns).fill(0));
@@ -47,7 +65,7 @@ function createBoard() {
 function getHighScores() {
   try {
     const storedScores = JSON.parse(localStorage.getItem(highScoreKey) || '[]');
-    return Array.isArray(storedScores) ? storedScores.filter(score => Number.isFinite(score)).sort((a, b) => b - a).slice(0, 5) : [];
+    return Array.isArray(storedScores) ? storedScores.map(entry => typeof entry === 'number' ? { score: entry, mode: 'classic', date: '' } : entry).filter(entry => entry && Number.isFinite(entry.score)).sort((a, b) => b.score - a.score).slice(0, 5) : [];
   } catch {
     return [];
   }
@@ -62,19 +80,21 @@ function renderHighScores() {
   }
   scores.forEach(value => {
     const item = document.createElement('li');
-    item.textContent = String(value).padStart(6, '0');
+    const date = value.date ? ` ${new Date(value.date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}` : '';
+    item.textContent = `${String(value.score).padStart(6, '0')} ${modes[value.mode]?.label || 'CLASSIC'}${date}`;
     highScoresElement.appendChild(item);
   });
 }
 
 function saveHighScore() {
-  const scores = [...getHighScores(), score].sort((a, b) => b - a).slice(0, 5);
+  const scores = [...getHighScores(), { score, mode, date: new Date().toISOString() }].sort((a, b) => b.score - a.score).slice(0, 5);
   localStorage.setItem(highScoreKey, JSON.stringify(scores));
   renderHighScores();
 }
 
 function randomPiece() {
-  const shape = shapes[Math.floor(Math.random() * shapes.length)];
+  if (!bag.length) bag = shapes.map((_, index) => index).sort(() => Math.random() - 0.5);
+  const shape = shapes[bag.pop()];
   return createPiece(shape);
 }
 
@@ -144,8 +164,16 @@ function merge() {
 function rotate() {
   const matrix = currentPiece.matrix.map((_, index) => currentPiece.matrix.map(row => row[index]).reverse());
   const previous = currentPiece.matrix;
+  const previousX = currentPiece.position.x;
   currentPiece.matrix = matrix;
-  if (collides(currentPiece)) currentPiece.matrix = previous;
+  for (const [offsetX, offsetY] of wallKicks) {
+    currentPiece.position.x = previousX + offsetX;
+    currentPiece.position.y += offsetY;
+    if (!collides(currentPiece)) { playTone(420, .04); return; }
+    currentPiece.position.y -= offsetY;
+  }
+  currentPiece.position.x = previousX;
+  currentPiece.matrix = previous;
 }
 
 function move(direction) {
@@ -157,20 +185,22 @@ function drop() {
   currentPiece.position.y++;
   if (collides(currentPiece)) {
     currentPiece.position.y--;
-    merge();
-    clearLines();
-    spawn();
+    lockCounter += dropCounter;
+    if (lockCounter >= lockDelay) lockPiece();
+  } else {
+    lockCounter = 0;
   }
   dropCounter = 0;
 }
 
-function hardDrop() { while (!collides(currentPiece)) currentPiece.position.y++; currentPiece.position.y--; drop(); }
+function lockPiece() { merge(); clearLines(); playTone(180, .07); spawn(); lockCounter = 0; }
+function hardDrop() { let distance = 0; while (!collides(currentPiece)) { currentPiece.position.y++; distance++; } currentPiece.position.y--; score += Math.max(0, distance - 1) * 2; updateStats(); lockPiece(); }
 
 function clearLines() {
   let cleared = 0;
   board = board.filter(row => { if (row.every(Boolean)) { cleared++; return false; } return true; });
   while (board.length < rows) board.unshift(Array(columns).fill(0));
-  if (cleared) { lines += cleared; score += [0, 100, 300, 500, 800][cleared] * level; level = Math.floor(lines / 10) + 1; dropInterval = Math.max(100, 800 - (level - 1) * 70); updateStats(); }
+  if (cleared) { lines += cleared; score += [0, 100, 300, 500, 800][cleared] * level; level = Math.floor(lines / 10) + 1; dropInterval = Math.max(100, 800 - (level - 1) * 70); playTone(240 + cleared * 100, .12); updateStats(); checkModeGoal(); }
 }
 
 function spawn() {
@@ -182,7 +212,8 @@ function spawn() {
 }
 
 function updateStats() { scoreElement.textContent = String(score).padStart(6, '0'); linesElement.textContent = String(lines).padStart(2, '0'); levelElement.textContent = String(level).padStart(2, '0'); }
-function endGame() { running = false; saveHighScore(); statusElement.textContent = 'GAME OVER'; startButton.textContent = 'Play again'; }
+function checkModeGoal() { if (mode === 'sprint' && lines >= modes.sprint.target) endGame('SPRINT COMPLETE'); }
+function endGame(result = 'GAME OVER') { running = false; saveHighScore(); statusElement.textContent = result; liveStatus.textContent = `${modes[mode].label} / ${result}`; startButton.textContent = 'Play again'; announce(result); }
 function hold() {
   if (!running || paused || !canHold) return;
   const currentMatrix = currentPiece.matrix.map(row => [...row]);
@@ -199,12 +230,24 @@ function hold() {
   drawHold();
   draw();
 }
-function startGame() { board = createBoard(); score = 0; lines = 0; level = 1; dropInterval = 800; heldPiece = null; canHold = true; nextPiece = randomPiece(); spawn(); drawHold(); updateStats(); running = true; paused = false; statusElement.textContent = 'LIVE'; startButton.textContent = 'Restart'; canvas.focus(); }
+function startGame() { mode = modeSelect.value; board = createBoard(); score = 0; lines = 0; level = 1; dropInterval = 800; lockCounter = 0; elapsedTime = 0; heldPiece = null; canHold = true; bag = []; nextPiece = randomPiece(); spawn(); drawHold(); updateStats(); running = true; paused = false; statusElement.textContent = 'LIVE'; liveStatus.textContent = `${modes[mode].label} / LIVE`; startButton.textContent = 'Restart'; canvas.focus(); announce(`${modes[mode].label} started`); }
 function togglePause() { if (!running) return; paused = !paused; statusElement.textContent = paused ? 'PAUSED' : 'LIVE'; }
+
+function playTone(frequency, duration) { if (muted) return; soundContext ||= new AudioContext(); const oscillator = soundContext.createOscillator(); const gain = soundContext.createGain(); oscillator.frequency.value = frequency; gain.gain.value = .035; oscillator.connect(gain).connect(soundContext.destination); oscillator.start(); oscillator.stop(soundContext.currentTime + duration); }
+function announce(message) { liveStatus.textContent = `${modes[mode].label} / ${message}`; }
+function loadSettings() { try { const settings = JSON.parse(localStorage.getItem(settingsKey) || '{}'); muted = Boolean(settings.muted); document.body.dataset.theme = settings.theme || 'paper'; } catch { document.body.dataset.theme = 'paper'; } updateSettingsButtons(); }
+function saveSettings() { localStorage.setItem(settingsKey, JSON.stringify({ muted, theme: document.body.dataset.theme })); }
+function updateSettingsButtons() { muteButton.textContent = muted ? 'Sound off' : 'Sound on'; themeButton.textContent = document.body.dataset.theme === 'night' ? 'Day theme' : 'Night theme'; }
+function toggleMute() { muted = !muted; saveSettings(); updateSettingsButtons(); }
+function toggleTheme() { document.body.dataset.theme = document.body.dataset.theme === 'night' ? 'paper' : 'night'; saveSettings(); updateSettingsButtons(); }
+function toggleFullscreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); }
+function exportScores() { const file = new Blob([JSON.stringify(getHighScores(), null, 2)], { type: 'application/json' }); const link = document.createElement('a'); link.href = URL.createObjectURL(file); link.download = 'blockfall-scores.json'; link.click(); URL.revokeObjectURL(link.href); }
+function importScores() { fileInput.click(); }
+function readScoreFile(event) { const reader = new FileReader(); reader.onload = () => { try { const imported = JSON.parse(reader.result); if (!Array.isArray(imported)) throw new Error('Invalid scores'); const normalized = imported.map(value => typeof value === 'number' ? { score: value, mode: 'classic', date: '' } : value).filter(value => value && Number.isFinite(value.score)).slice(0, 5); if (normalized.length !== imported.length) throw new Error('Invalid scores'); localStorage.setItem(highScoreKey, JSON.stringify(normalized)); renderHighScores(); } catch { announce('SCORE FILE REJECTED'); } }; if (event.target.files[0]) reader.readAsText(event.target.files[0]); }
 
 function update(time = 0) {
   const delta = time - lastTime; lastTime = time;
-  if (running && !paused) { dropCounter += delta; if (dropCounter > dropInterval) drop(); draw(); }
+  if (running && !paused) { dropCounter += delta; elapsedTime += delta / 1000; if (mode === 'time' && elapsedTime >= modes.time.target) endGame('TIME UP'); if (mode === 'time') liveStatus.textContent = `${modes[mode].label} / ${Math.max(0, modes.time.target - Math.floor(elapsedTime))}s`; if (dropCounter > dropInterval) drop(); draw(); }
   requestAnimationFrame(update);
 }
 
@@ -219,15 +262,23 @@ document.addEventListener('keydown', event => {
   if (event.key === 'ArrowUp') rotate();
   if (event.code === 'Space') hardDrop();
   if (event.key === 'c' || event.key === 'C') hold();
+  if (event.key === 'm' || event.key === 'M') toggleMute();
   if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space'].includes(event.code) || event.key.startsWith('Arrow')) event.preventDefault();
   draw();
 });
 
 document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => { if (!running || paused) return; const action = button.dataset.action; if (action === 'left') move(-1); if (action === 'right') move(1); if (action === 'rotate') rotate(); if (action === 'drop') hardDrop(); if (action === 'hold') hold(); draw(); }));
 startButton.addEventListener('click', startGame);
+muteButton.addEventListener('click', toggleMute);
+themeButton.addEventListener('click', toggleTheme);
+fullscreenButton.addEventListener('click', toggleFullscreen);
+exportButton.addEventListener('click', exportScores);
+importButton.addEventListener('click', importScores);
+fileInput.addEventListener('change', readScoreFile);
 nextPiece = randomPiece();
 drawNext();
 drawHold();
 renderHighScores();
+loadSettings();
 draw();
 requestAnimationFrame(update);

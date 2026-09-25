@@ -16,6 +16,7 @@
         </div>
         <div class="status" id="status">READY</div>
       </div>
+      <p class="live-status" id="live-status" role="status" aria-live="polite">CLASSIC / READY</p>
       <canvas id="board" width="300" height="600" aria-label="Tetris board" tabindex="0"></canvas>
       <div class="mobile-controls" aria-label="Touch controls">
         <button data-action="left" aria-label="Move left">&#8592;</button>
@@ -47,6 +48,23 @@
       <div class="scores-block">
         <span>TOP SCORES</span>
         <ol id="high-scores" aria-label="Top scores"></ol>
+      </div>
+      <label class="mode-label" for="mode">MODE
+        <select id="mode">
+          <option value="classic">Classic</option>
+          <option value="sprint">Sprint / 40 lines</option>
+          <option value="time">Time attack</option>
+        </select>
+      </label>
+      <div class="settings-row">
+        <button class="utility" id="mute">Sound on</button>
+        <button class="utility" id="theme">Night theme</button>
+        <button class="utility" id="fullscreen">Fullscreen</button>
+      </div>
+      <div class="score-tools">
+        <button class="utility" id="export-scores">Export scores</button>
+        <button class="utility" id="import-scores">Import scores</button>
+        <input id="score-file" type="file" accept="application/json" hidden>
       </div>
       <button class="secondary" data-action="hold">Hold piece</button>
       <button class="primary" id="start">Start game</button>
