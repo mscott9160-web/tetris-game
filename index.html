@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blockfall</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="game-panel" aria-label="Tetris game">
+      <div class="heading-row">
+        <div>
+          <p class="eyebrow">BLOCKFALL / 001</p>
+          <h1>Tetris</h1>
+        </div>
+        <div class="status" id="status">READY</div>
+      </div>
+      <canvas id="board" width="300" height="600" aria-label="Tetris board" tabindex="0"></canvas>
+      <div class="mobile-controls" aria-label="Touch controls">
+        <button data-action="left" aria-label="Move left">&#8592;</button>
+        <button data-action="rotate" aria-label="Rotate">&#8635;</button>
+        <button data-action="right" aria-label="Move right">&#8594;</button>
+        <button data-action="drop" aria-label="Hard drop">&#8595;</button>
+      </div>
+    </section>
+
+    <aside class="sidebar">
+      <div class="brand-mark" aria-hidden="true">+</div>
+      <p class="eyebrow">CURRENT RUN</p>
+      <div class="score-block">
+        <span>SCORE</span>
+        <strong id="score">000000</strong>
+      </div>
+      <div class="stats">
+        <div><span>LINES</span><strong id="lines">00</strong></div>
+        <div><span>LEVEL</span><strong id="level">01</strong></div>
+      </div>
+      <div class="next-block">
+        <span>NEXT PIECE</span>
+        <canvas id="next" width="120" height="100"></canvas>
+      </div>
+      <button class="primary" id="start">Start game</button>
+      <p class="hint">ARROWS MOVE<br>UP ROTATES<br>SPACE DROPS<br>P PAUSES</p>
+    </aside>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
