@@ -2,6 +2,8 @@ const canvas = document.querySelector('#board');
 const context = canvas.getContext('2d');
 const nextCanvas = document.querySelector('#next');
 const nextContext = nextCanvas.getContext('2d');
+const holdCanvas = document.querySelector('#hold');
+const holdContext = holdCanvas.getContext('2d');
 const scoreElement = document.querySelector('#score');
 const linesElement = document.querySelector('#lines');
 const levelElement = document.querySelector('#level');
@@ -25,6 +27,8 @@ const shapes = [
 let board = createBoard();
 let currentPiece;
 let nextPiece;
+let heldPiece;
+let canHold = true;
 let score = 0;
 let lines = 0;
 let level = 1;
@@ -40,7 +44,11 @@ function createBoard() {
 
 function randomPiece() {
   const shape = shapes[Math.floor(Math.random() * shapes.length)];
-  return { matrix: shape.map(row => [...row]), position: { x: Math.floor(columns / 2) - Math.ceil(shape[0].length / 2), y: 0 } };
+  return createPiece(shape);
+}
+
+function createPiece(matrix) {
+  return { matrix: matrix.map(row => [...row]), position: { x: Math.floor(columns / 2) - Math.ceil(matrix[0].length / 2), y: 0 } };
 }
 
 function drawCell(targetContext, x, y, color, size) {
@@ -77,12 +85,21 @@ function drawMatrix(targetContext, matrix, position, size) {
 }
 
 function drawNext() {
-  nextContext.fillStyle = 'rgba(255,255,255,.25)';
-  nextContext.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+  drawPreview(nextContext, nextCanvas, nextPiece);
+}
+
+function drawPreview(targetContext, targetCanvas, piece) {
+  targetContext.fillStyle = 'rgba(255,255,255,.25)';
+  targetContext.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
+  if (!piece) return;
   const size = 24;
-  const offsetX = (5 - nextPiece.matrix[0].length) / 2;
-  const offsetY = (4 - nextPiece.matrix.length) / 2;
-  drawMatrix(nextContext, nextPiece.matrix, { x: offsetX, y: offsetY }, size);
+  const offsetX = (5 - piece.matrix[0].length) / 2;
+  const offsetY = (4 - piece.matrix.length) / 2;
+  drawMatrix(targetContext, piece.matrix, { x: offsetX, y: offsetY }, size);
+}
+
+function drawHold() {
+  drawPreview(holdContext, holdCanvas, heldPiece);
 }
 
 function collides(piece) {
@@ -128,13 +145,30 @@ function clearLines() {
 function spawn() {
   currentPiece = nextPiece || randomPiece();
   nextPiece = randomPiece();
+  canHold = true;
   drawNext();
   if (collides(currentPiece)) endGame();
 }
 
 function updateStats() { scoreElement.textContent = String(score).padStart(6, '0'); linesElement.textContent = String(lines).padStart(2, '0'); levelElement.textContent = String(level).padStart(2, '0'); }
 function endGame() { running = false; statusElement.textContent = 'GAME OVER'; startButton.textContent = 'Play again'; }
-function startGame() { board = createBoard(); score = 0; lines = 0; level = 1; dropInterval = 800; nextPiece = randomPiece(); spawn(); updateStats(); running = true; paused = false; statusElement.textContent = 'LIVE'; startButton.textContent = 'Restart'; canvas.focus(); }
+function hold() {
+  if (!running || paused || !canHold) return;
+  const currentMatrix = currentPiece.matrix.map(row => [...row]);
+  if (heldPiece) {
+    currentPiece = createPiece(heldPiece.matrix);
+    heldPiece = createPiece(currentMatrix);
+  } else {
+    heldPiece = createPiece(currentMatrix);
+    currentPiece = nextPiece;
+    nextPiece = randomPiece();
+    drawNext();
+  }
+  canHold = false;
+  drawHold();
+  draw();
+}
+function startGame() { board = createBoard(); score = 0; lines = 0; level = 1; dropInterval = 800; heldPiece = null; canHold = true; nextPiece = randomPiece(); spawn(); drawHold(); updateStats(); running = true; paused = false; statusElement.textContent = 'LIVE'; startButton.textContent = 'Restart'; canvas.focus(); }
 function togglePause() { if (!running) return; paused = !paused; statusElement.textContent = paused ? 'PAUSED' : 'LIVE'; }
 
 function update(time = 0) {
@@ -153,13 +187,15 @@ document.addEventListener('keydown', event => {
   if (event.key === 'ArrowDown') drop();
   if (event.key === 'ArrowUp') rotate();
   if (event.code === 'Space') hardDrop();
+  if (event.key === 'c' || event.key === 'C') hold();
   if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space'].includes(event.code) || event.key.startsWith('Arrow')) event.preventDefault();
   draw();
 });
 
-document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => { if (!running || paused) return; const action = button.dataset.action; if (action === 'left') move(-1); if (action === 'right') move(1); if (action === 'rotate') rotate(); if (action === 'drop') hardDrop(); draw(); }));
+document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => { if (!running || paused) return; const action = button.dataset.action; if (action === 'left') move(-1); if (action === 'right') move(1); if (action === 'rotate') rotate(); if (action === 'drop') hardDrop(); if (action === 'hold') hold(); draw(); }));
 startButton.addEventListener('click', startGame);
 nextPiece = randomPiece();
 drawNext();
+drawHold();
 draw();
 requestAnimationFrame(update);
