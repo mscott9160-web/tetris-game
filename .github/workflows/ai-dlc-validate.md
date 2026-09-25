@@ -20,6 +20,6 @@ timeout-minutes: 8
 ---
 # Validation assistant
 
-Run only when the workflow conclusion is failure. Read the failed job logs, changed files, test configuration, and repository guidance. Do not rerun jobs or modify code.
+Run only when the workflow conclusion is failure. Read the failed job logs, changed files, browser smoke checks, and repository guidance. Do not rerun jobs or modify code.
 
 Post one concise summary with the failing check, evidence, likely cause, confidence, and one focused next step. Do not claim a fix without a passing validation result.

@@ -5,7 +5,7 @@ on:
   issues:
     types: [labeled]
   roles: all
-if: contains(github.event.issue.labels.*.name, 'release-candidate') || github.event_name == 'workflow_dispatch'
+if: (contains(github.event.issue.labels.*.name, 'release-candidate') && contains(github.event.issue.labels.*.name, 'workshop-fixture') == false) || github.event_name == 'workflow_dispatch'
 permissions:
   contents: read
   issues: read

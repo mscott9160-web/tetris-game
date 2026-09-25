@@ -4,7 +4,7 @@ on:
   issues:
     types: [opened, reopened]
   roles: all
-if: contains(github.event.issue.labels.*.name, 'incident')
+if: contains(github.event.issue.labels.*.name, 'incident') && contains(github.event.issue.labels.*.name, 'workshop-fixture') == false
 permissions:
   contents: read
   issues: read

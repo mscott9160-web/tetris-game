@@ -4,7 +4,7 @@ on:
   issues:
     types: [labeled]
   roles: all
-if: contains(github.event.issue.labels.*.name, 'implementation-request')
+if: contains(github.event.issue.labels.*.name, 'implementation-request') && contains(github.event.issue.labels.*.name, 'workshop-fixture') == false
 permissions:
   contents: read
   issues: read
