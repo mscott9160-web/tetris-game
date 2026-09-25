@@ -12,7 +12,7 @@
       <div class="heading-row">
         <div>
           <p class="eyebrow">BLOCKFALL / 001</p>
-          <h1>Tetris</h1>
+          <h1>Blockfall</h1>
         </div>
         <div class="status" id="status">READY</div>
       </div>
@@ -23,7 +23,15 @@
         <button data-action="rotate" aria-label="Rotate">&#8635;</button>
         <button data-action="right" aria-label="Move right">&#8594;</button>
         <button data-action="drop" aria-label="Hard drop">&#8595;</button>
+        <button data-action="hold" aria-label="Hold piece">H</button>
+        <button data-action="pause" aria-label="Pause game">II</button>
       </div>
+      <section class="result-panel" id="result-panel" hidden aria-live="polite">
+        <p class="eyebrow">RUN COMPLETE</p>
+        <h2 id="result-title">GAME OVER</h2>
+        <p id="result-summary"></p>
+        <button class="primary" id="share-result">Share result</button>
+      </section>
     </section>
 
     <aside class="sidebar">
@@ -36,6 +44,7 @@
       <div class="stats">
         <div><span>LINES</span><strong id="lines">00</strong></div>
         <div><span>LEVEL</span><strong id="level">01</strong></div>
+        <div><span>TIME</span><strong id="timer">--:--</strong></div>
       </div>
       <div class="next-block">
         <span>NEXT PIECE</span>
@@ -49,11 +58,16 @@
         <span>TOP SCORES</span>
         <ol id="high-scores" aria-label="Top scores"></ol>
       </div>
+      <div class="scores-block">
+        <span>RECENT RUNS</span>
+        <ol id="run-history" aria-label="Recent runs"></ol>
+      </div>
       <label class="mode-label" for="mode">MODE
         <select id="mode">
           <option value="classic">Classic</option>
           <option value="sprint">Sprint / 40 lines</option>
           <option value="time">Time attack</option>
+          <option value="daily">Daily challenge</option>
         </select>
       </label>
       <div class="settings-row">
@@ -67,7 +81,12 @@
         <input id="score-file" type="file" accept="application/json" hidden>
       </div>
       <button class="secondary" data-action="hold">Hold piece</button>
+      <button class="secondary" id="pause">Pause game</button>
       <button class="primary" id="start">Start game</button>
+      <details class="onboarding">
+        <summary>How to play</summary>
+        <p>Move with the arrows, rotate with Up, drop with Space, and hold with C. Clear lines to score. Daily challenge uses today's fixed piece sequence.</p>
+      </details>
       <p class="hint">ARROWS MOVE<br>UP ROTATES<br>SPACE DROPS<br>C HOLDS<br>P PAUSES</p>
     </aside>
   </main>

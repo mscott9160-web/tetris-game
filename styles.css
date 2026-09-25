@@ -34,6 +34,7 @@ h1 { font-size: clamp(42px, 8vw, 78px); line-height: .84; letter-spacing: 0; mar
 .status { border: 1px solid var(--ink); padding: 6px 9px; }
 .live-status { width: min(100%, 300px); margin: 0 0 10px; color: var(--blue); font: 11px 'DM Mono', monospace; }
 #board { width: min(100%, 300px); height: auto; border: 2px solid var(--ink); background: #20292b; box-shadow: 12px 12px 0 var(--orange); outline: none; }
+#board:focus-visible { outline: 3px solid var(--blue); outline-offset: 5px; }
 .sidebar { border-left: 1px solid var(--line); padding-left: 32px; }
 .brand-mark { width: 42px; height: 42px; display: grid; place-items: center; margin-bottom: 42px; color: var(--paper); background: var(--blue); font-size: 32px; line-height: 1; }
 .score-block { margin: 14px 0 36px; }
@@ -60,7 +61,13 @@ button:hover, button:focus-visible { background: var(--blue); }
 .secondary { width: 100%; padding: 12px; margin-bottom: 8px; color: var(--ink); background: transparent; border: 1px solid var(--ink); }
 .secondary:hover, .secondary:focus-visible { color: var(--paper); }
 .hint { line-height: 1.8; margin-top: 28px; opacity: .65; }
-.mobile-controls { display: none; gap: 8px; margin-top: 24px; }
+.mobile-controls { display: none; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
 .mobile-controls button { width: 52px; height: 44px; font-size: 20px; }
+.result-panel { width: min(100%, 300px); margin-top: 28px; padding: 20px; border: 1px solid var(--ink); background: var(--paper); box-shadow: 8px 8px 0 var(--blue); }
+.result-panel h2 { margin: 8px 0; font-size: 24px; }
+.result-panel p { font: 12px 'DM Mono', monospace; line-height: 1.6; }
+.onboarding { margin-top: 24px; font-size: 13px; }
+.onboarding summary { cursor: pointer; font-family: 'DM Mono', monospace; font-size: 11px; }
+.onboarding p { line-height: 1.5; }
 @media (max-width: 700px) { .shell { grid-template-columns: 1fr; gap: 36px; padding: 28px 0 40px; } .sidebar { border-left: 0; border-top: 1px solid var(--line); padding: 28px 0 0; } .brand-mark { display: none; } .mobile-controls { display: flex; } .hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }

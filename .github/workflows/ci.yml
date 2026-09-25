@@ -14,7 +14,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install browser test dependencies
+        run: npm install
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
       - name: Validate JavaScript syntax
         run: node --check game.js
       - name: Verify application files
         run: test -s index.html && test -s styles.css && test -s game.js
+      - name: Run browser smoke tests
+        run: npm run test:browser

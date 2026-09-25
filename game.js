@@ -7,9 +7,11 @@ const holdContext = holdCanvas.getContext('2d');
 const scoreElement = document.querySelector('#score');
 const linesElement = document.querySelector('#lines');
 const levelElement = document.querySelector('#level');
+const timerElement = document.querySelector('#timer');
 const statusElement = document.querySelector('#status');
 const startButton = document.querySelector('#start');
 const highScoresElement = document.querySelector('#high-scores');
+const runHistoryElement = document.querySelector('#run-history');
 const modeSelect = document.querySelector('#mode');
 const muteButton = document.querySelector('#mute');
 const themeButton = document.querySelector('#theme');
@@ -18,6 +20,12 @@ const fileInput = document.querySelector('#score-file');
 const importButton = document.querySelector('#import-scores');
 const exportButton = document.querySelector('#export-scores');
 const liveStatus = document.querySelector('#live-status');
+const pauseButton = document.querySelector('#pause');
+const resultPanel = document.querySelector('#result-panel');
+const resultTitle = document.querySelector('#result-title');
+const resultSummary = document.querySelector('#result-summary');
+const shareResultButton = document.querySelector('#share-result');
+let touchStart;
 
 const columns = 10;
 const rows = 20;
@@ -34,7 +42,8 @@ const shapes = [
 ];
 const highScoreKey = 'blockfall-high-scores';
 const settingsKey = 'blockfall-settings';
-const modes = { classic: { label: 'CLASSIC', target: 0 }, sprint: { label: 'SPRINT', target: 40 }, time: { label: 'TIME ATTACK', target: 120 } };
+const historyKey = 'blockfall-run-history';
+const modes = { classic: { label: 'CLASSIC', target: 0 }, sprint: { label: 'SPRINT', target: 40 }, time: { label: 'TIME ATTACK', target: 120 }, daily: { label: 'DAILY', target: 40 } };
 const wallKicks = [[0, 0], [-1, 0], [1, 0], [0, -1], [-2, 0], [2, 0]];
 
 let board = createBoard();
@@ -57,6 +66,9 @@ let elapsedTime = 0;
 let bag = [];
 let muted = false;
 let soundContext;
+let groundedTime = 0;
+let randomSource = Math.random;
+let lastResult = null;
 
 function createBoard() {
   return Array.from({ length: rows }, () => Array(columns).fill(0));
@@ -86,6 +98,11 @@ function renderHighScores() {
   });
 }
 
+function renderRunHistory() {
+  const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+  runHistoryElement.innerHTML = history.length ? history.slice(0, 3).map(run => `<li>${String(run.score).padStart(6, '0')} ${modes[run.mode]?.label || 'CLASSIC'}</li>`).join('') : '<li>No runs yet</li>';
+}
+
 function saveHighScore() {
   const scores = [...getHighScores(), { score, mode, date: new Date().toISOString() }].sort((a, b) => b.score - a.score).slice(0, 5);
   localStorage.setItem(highScoreKey, JSON.stringify(scores));
@@ -93,7 +110,10 @@ function saveHighScore() {
 }
 
 function randomPiece() {
-  if (!bag.length) bag = shapes.map((_, index) => index).sort(() => Math.random() - 0.5);
+  if (!bag.length) {
+    bag = shapes.map((_, index) => index);
+    for (let index = bag.length - 1; index > 0; index--) { const swapIndex = Math.floor(randomSource() * (index + 1)); [bag[index], bag[swapIndex]] = [bag[swapIndex], bag[index]]; }
+  }
   const shape = shapes[bag.pop()];
   return createPiece(shape);
 }
@@ -169,7 +189,7 @@ function rotate() {
   for (const [offsetX, offsetY] of wallKicks) {
     currentPiece.position.x = previousX + offsetX;
     currentPiece.position.y += offsetY;
-    if (!collides(currentPiece)) { playTone(420, .04); return; }
+    if (!collides(currentPiece)) { groundedTime = 0; playTone(420, .04); return; }
     currentPiece.position.y -= offsetY;
   }
   currentPiece.position.x = previousX;
@@ -179,21 +199,21 @@ function rotate() {
 function move(direction) {
   currentPiece.position.x += direction;
   if (collides(currentPiece)) currentPiece.position.x -= direction;
+  else groundedTime = 0;
 }
 
 function drop() {
   currentPiece.position.y++;
   if (collides(currentPiece)) {
     currentPiece.position.y--;
-    lockCounter += dropCounter;
-    if (lockCounter >= lockDelay) lockPiece();
+    groundedTime = 0;
   } else {
-    lockCounter = 0;
+    groundedTime = 0;
   }
   dropCounter = 0;
 }
 
-function lockPiece() { merge(); clearLines(); playTone(180, .07); spawn(); lockCounter = 0; }
+function lockPiece() { merge(); clearLines(); playTone(180, .07); spawn(); groundedTime = 0; lockCounter = 0; }
 function hardDrop() { let distance = 0; while (!collides(currentPiece)) { currentPiece.position.y++; distance++; } currentPiece.position.y--; score += Math.max(0, distance - 1) * 2; updateStats(); lockPiece(); }
 
 function clearLines() {
@@ -211,9 +231,11 @@ function spawn() {
   if (collides(currentPiece)) endGame();
 }
 
-function updateStats() { scoreElement.textContent = String(score).padStart(6, '0'); linesElement.textContent = String(lines).padStart(2, '0'); levelElement.textContent = String(level).padStart(2, '0'); }
-function checkModeGoal() { if (mode === 'sprint' && lines >= modes.sprint.target) endGame('SPRINT COMPLETE'); }
-function endGame(result = 'GAME OVER') { running = false; saveHighScore(); statusElement.textContent = result; liveStatus.textContent = `${modes[mode].label} / ${result}`; startButton.textContent = 'Play again'; announce(result); }
+function updateStats() { scoreElement.textContent = String(score).padStart(6, '0'); linesElement.textContent = String(lines).padStart(2, '0'); levelElement.textContent = String(level).padStart(2, '0'); timerElement.textContent = mode === 'time' ? `${Math.floor(Math.max(0, modes.time.target - elapsedTime) / 60).toString().padStart(2, '0')}:${Math.floor(Math.max(0, modes.time.target - elapsedTime) % 60).toString().padStart(2, '0')}` : `${Math.floor(elapsedTime / 60).toString().padStart(2, '0')}:${Math.floor(elapsedTime % 60).toString().padStart(2, '0')}`; }
+function checkModeGoal() { if ((mode === 'sprint' || mode === 'daily') && lines >= modes[mode].target) endGame(`${modes[mode].label} COMPLETE`); }
+function track(event, details = {}) { const events = JSON.parse(localStorage.getItem('blockfall-events') || '[]'); events.push({ event, details, date: new Date().toISOString() }); localStorage.setItem('blockfall-events', JSON.stringify(events.slice(-100))); }
+function recordRun(result) { const history = JSON.parse(localStorage.getItem(historyKey) || '[]'); history.unshift({ score, lines, mode, seconds: Math.floor(elapsedTime), result, date: new Date().toISOString() }); localStorage.setItem(historyKey, JSON.stringify(history.slice(0, 10))); renderRunHistory(); track('run_complete', { mode, score, lines, result }); }
+function endGame(result = 'GAME OVER') { running = false; lastResult = { score, lines, mode, seconds: Math.floor(elapsedTime), result }; saveHighScore(); recordRun(result); statusElement.textContent = result; announce(result); resultTitle.textContent = result; resultSummary.textContent = `${modes[mode].label} / ${score.toString().padStart(6, '0')} points / ${lines} lines`; resultPanel.hidden = false; startButton.textContent = 'Play again'; pauseButton.textContent = 'Pause game'; }
 function hold() {
   if (!running || paused || !canHold) return;
   const currentMatrix = currentPiece.matrix.map(row => [...row]);
@@ -230,8 +252,10 @@ function hold() {
   drawHold();
   draw();
 }
-function startGame() { mode = modeSelect.value; board = createBoard(); score = 0; lines = 0; level = 1; dropInterval = 800; lockCounter = 0; elapsedTime = 0; heldPiece = null; canHold = true; bag = []; nextPiece = randomPiece(); spawn(); drawHold(); updateStats(); running = true; paused = false; statusElement.textContent = 'LIVE'; liveStatus.textContent = `${modes[mode].label} / LIVE`; startButton.textContent = 'Restart'; canvas.focus(); announce(`${modes[mode].label} started`); }
-function togglePause() { if (!running) return; paused = !paused; statusElement.textContent = paused ? 'PAUSED' : 'LIVE'; }
+function dailySeed() { return new Date().toISOString().slice(0, 10).split('').reduce((total, character) => (total * 31 + character.charCodeAt(0)) >>> 0, 7); }
+function seededRandom(seed) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
+function startGame() { mode = modeSelect.value; randomSource = mode === 'daily' ? seededRandom(dailySeed()) : Math.random; board = createBoard(); score = 0; lines = 0; level = 1; dropInterval = 800; groundedTime = 0; lockCounter = 0; elapsedTime = 0; heldPiece = null; canHold = true; bag = []; resultPanel.hidden = true; nextPiece = randomPiece(); spawn(); drawHold(); updateStats(); running = true; paused = false; statusElement.textContent = 'LIVE'; startButton.textContent = 'Restart'; pauseButton.textContent = 'Pause game'; canvas.focus(); announce(`${modes[mode].label} started`); track('run_start', { mode }); }
+function togglePause() { if (!running) return; paused = !paused; statusElement.textContent = paused ? 'PAUSED' : 'LIVE'; pauseButton.textContent = paused ? 'Resume game' : 'Pause game'; announce(paused ? 'PAUSED' : 'RESUMED'); }
 
 function playTone(frequency, duration) { if (muted) return; soundContext ||= new AudioContext(); const oscillator = soundContext.createOscillator(); const gain = soundContext.createGain(); oscillator.frequency.value = frequency; gain.gain.value = .035; oscillator.connect(gain).connect(soundContext.destination); oscillator.start(); oscillator.stop(soundContext.currentTime + duration); }
 function announce(message) { liveStatus.textContent = `${modes[mode].label} / ${message}`; }
@@ -242,17 +266,28 @@ function toggleMute() { muted = !muted; saveSettings(); updateSettingsButtons();
 function toggleTheme() { document.body.dataset.theme = document.body.dataset.theme === 'night' ? 'paper' : 'night'; saveSettings(); updateSettingsButtons(); }
 function toggleFullscreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); }
 function exportScores() { const file = new Blob([JSON.stringify(getHighScores(), null, 2)], { type: 'application/json' }); const link = document.createElement('a'); link.href = URL.createObjectURL(file); link.download = 'blockfall-scores.json'; link.click(); URL.revokeObjectURL(link.href); }
+async function shareResult() { if (!lastResult) return; const text = `Blockfall ${modes[lastResult.mode].label}: ${lastResult.score} points, ${lastResult.lines} lines`; if (navigator.share) await navigator.share({ title: 'Blockfall result', text }); else await navigator.clipboard?.writeText(text); track('result_shared', { mode: lastResult.mode }); announce('RESULT READY TO SHARE'); }
 function importScores() { fileInput.click(); }
 function readScoreFile(event) { const reader = new FileReader(); reader.onload = () => { try { const imported = JSON.parse(reader.result); if (!Array.isArray(imported)) throw new Error('Invalid scores'); const normalized = imported.map(value => typeof value === 'number' ? { score: value, mode: 'classic', date: '' } : value).filter(value => value && Number.isFinite(value.score)).slice(0, 5); if (normalized.length !== imported.length) throw new Error('Invalid scores'); localStorage.setItem(highScoreKey, JSON.stringify(normalized)); renderHighScores(); } catch { announce('SCORE FILE REJECTED'); } }; if (event.target.files[0]) reader.readAsText(event.target.files[0]); }
 
 function update(time = 0) {
   const delta = time - lastTime; lastTime = time;
-  if (running && !paused) { dropCounter += delta; elapsedTime += delta / 1000; if (mode === 'time' && elapsedTime >= modes.time.target) endGame('TIME UP'); if (mode === 'time') liveStatus.textContent = `${modes[mode].label} / ${Math.max(0, modes.time.target - Math.floor(elapsedTime))}s`; if (dropCounter > dropInterval) drop(); draw(); }
+  if (running && !paused) {
+    dropCounter += delta;
+    elapsedTime += delta / 1000;
+    if (mode === 'time' && elapsedTime >= modes.time.target) endGame('TIME UP');
+    if (running && mode === 'time') announce(`${Math.max(0, modes.time.target - Math.floor(elapsedTime))}s remaining`);
+    if (running && dropCounter > dropInterval) drop();
+    if (running && currentPiece && collides(currentPiece)) { groundedTime += delta; if (groundedTime >= lockDelay) lockPiece(); }
+    updateStats();
+    draw();
+  }
   requestAnimationFrame(update);
 }
 
 document.addEventListener('keydown', event => {
-  if (!running && event.key !== 'Enter') return;
+  if (!running && event.key === 'Enter') { startGame(); return; }
+  if (!running) return;
   if (event.key === 'p' || event.key === 'P') togglePause();
   if (!running) return;
   if (paused) return;
@@ -267,8 +302,23 @@ document.addEventListener('keydown', event => {
   draw();
 });
 
-document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => { if (!running || paused) return; const action = button.dataset.action; if (action === 'left') move(-1); if (action === 'right') move(1); if (action === 'rotate') rotate(); if (action === 'drop') hardDrop(); if (action === 'hold') hold(); draw(); }));
+document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => { if (button.dataset.action === 'pause') { togglePause(); return; } if (!running || paused) return; const action = button.dataset.action; if (action === 'left') move(-1); if (action === 'right') move(1); if (action === 'rotate') rotate(); if (action === 'drop') hardDrop(); if (action === 'hold') hold(); draw(); }));
+canvas.addEventListener('touchstart', event => { touchStart = event.changedTouches[0]; }, { passive: true });
+canvas.addEventListener('touchend', event => {
+  if (!touchStart || !running || paused) return;
+  const touch = event.changedTouches[0];
+  const deltaX = touch.clientX - touchStart.clientX;
+  const deltaY = touch.clientY - touchStart.clientY;
+  if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 24) rotate();
+  else if (Math.abs(deltaX) > Math.abs(deltaY)) move(deltaX > 0 ? 1 : -1);
+  else if (deltaY > 0) hardDrop();
+  else rotate();
+  touchStart = null;
+  draw();
+}, { passive: true });
 startButton.addEventListener('click', startGame);
+pauseButton.addEventListener('click', togglePause);
+shareResultButton.addEventListener('click', shareResult);
 muteButton.addEventListener('click', toggleMute);
 themeButton.addEventListener('click', toggleTheme);
 fullscreenButton.addEventListener('click', toggleFullscreen);
@@ -279,6 +329,7 @@ nextPiece = randomPiece();
 drawNext();
 drawHold();
 renderHighScores();
+renderRunHistory();
 loadSettings();
 draw();
 requestAnimationFrame(update);
