@@ -37,6 +37,12 @@ h1 { font-size: clamp(42px, 8vw, 78px); line-height: .84; letter-spacing: 0; mar
 .next-block { margin: 28px 0; }
 .next-block > span { display: block; margin-bottom: 10px; }
 #next { display: block; border: 1px solid var(--line); background: rgba(255,255,255,.25); }
+#hold { display: block; border: 1px solid var(--line); background: rgba(255,255,255,.25); }
+.scores-block { margin: 28px 0; }
+.scores-block > span { font-family: 'DM Mono', monospace; font-size: 11px; }
+#high-scores { margin: 10px 0 0; padding-left: 24px; font-family: 'DM Mono', monospace; font-size: 12px; line-height: 1.8; }
+#high-scores li::marker { color: var(--orange); }
+#high-scores li { padding-left: 5px; }
 button { border: 0; color: var(--paper); background: var(--ink); font: 600 14px 'Space Grotesk', sans-serif; cursor: pointer; }
 button:hover, button:focus-visible { background: var(--blue); }
 .primary { width: 100%; padding: 15px; }

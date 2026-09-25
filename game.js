@@ -9,6 +9,7 @@ const linesElement = document.querySelector('#lines');
 const levelElement = document.querySelector('#level');
 const statusElement = document.querySelector('#status');
 const startButton = document.querySelector('#start');
+const highScoresElement = document.querySelector('#high-scores');
 
 const columns = 10;
 const rows = 20;
@@ -23,6 +24,7 @@ const shapes = [
   [[0, 6, 0], [6, 6, 6]],
   [[7, 7, 0], [0, 7, 7]]
 ];
+const highScoreKey = 'blockfall-high-scores';
 
 let board = createBoard();
 let currentPiece;
@@ -40,6 +42,35 @@ let paused = false;
 
 function createBoard() {
   return Array.from({ length: rows }, () => Array(columns).fill(0));
+}
+
+function getHighScores() {
+  try {
+    const storedScores = JSON.parse(localStorage.getItem(highScoreKey) || '[]');
+    return Array.isArray(storedScores) ? storedScores.filter(score => Number.isFinite(score)).sort((a, b) => b - a).slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+}
+
+function renderHighScores() {
+  highScoresElement.innerHTML = '';
+  const scores = getHighScores();
+  if (!scores.length) {
+    highScoresElement.innerHTML = '<li>No scores yet</li>';
+    return;
+  }
+  scores.forEach(value => {
+    const item = document.createElement('li');
+    item.textContent = String(value).padStart(6, '0');
+    highScoresElement.appendChild(item);
+  });
+}
+
+function saveHighScore() {
+  const scores = [...getHighScores(), score].sort((a, b) => b - a).slice(0, 5);
+  localStorage.setItem(highScoreKey, JSON.stringify(scores));
+  renderHighScores();
 }
 
 function randomPiece() {
@@ -151,7 +182,7 @@ function spawn() {
 }
 
 function updateStats() { scoreElement.textContent = String(score).padStart(6, '0'); linesElement.textContent = String(lines).padStart(2, '0'); levelElement.textContent = String(level).padStart(2, '0'); }
-function endGame() { running = false; statusElement.textContent = 'GAME OVER'; startButton.textContent = 'Play again'; }
+function endGame() { running = false; saveHighScore(); statusElement.textContent = 'GAME OVER'; startButton.textContent = 'Play again'; }
 function hold() {
   if (!running || paused || !canHold) return;
   const currentMatrix = currentPiece.matrix.map(row => [...row]);
@@ -197,5 +228,6 @@ startButton.addEventListener('click', startGame);
 nextPiece = randomPiece();
 drawNext();
 drawHold();
+renderHighScores();
 draw();
 requestAnimationFrame(update);
